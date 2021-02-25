@@ -1,9 +1,25 @@
 #pragma once
+#include <ez/meta.hpp>
 #include <cinttypes>
 #include <type_traits>
 
 namespace ez {
 	namespace intern {
+		template<typename pointer>
+		struct deref_functor {
+			deref_functor() noexcept = default;
+			~deref_functor() noexcept = default;
+			deref_functor(deref_functor&&) noexcept = default;
+			deref_functor& operator=(deref_functor&&) noexcept = default;
+
+			using reference = decltype(*std::declval<pointer>());
+
+			reference operator()(pointer obj) const {
+				return *obj;
+			}
+		};
+
+
 		template<typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
 		class range_iterator {
 		public:
@@ -105,5 +121,30 @@ namespace ez {
 		}
 
 
+		template<typename Iter>
+		struct simple_range {
+			static_assert(ez::is_iterator_v<Iter>, "ez::intern::simple_range requires an iterator type!");
+			static_assert(std::is_nothrow_copy_constructible_v<Iter>, "ez::intern::simple_range requires a nothrow copy constructible iterator type!");
+
+			template<typename = std::enable_if_t<std::is_nothrow_move_constructible_v<Iter>>>
+			simple_range(Iter&& _first, Iter&& _last) noexcept
+				: first(std::move(_first))
+				, last(std::move(_last))
+			{};
+
+			simple_range(const Iter& _first, const Iter& _last) noexcept
+				: first(_first)
+				, last(_last)
+			{};
+
+			Iter first, last;
+
+			Iter begin() noexcept {
+				return first;
+			}
+			Iter end() noexcept {
+				return last;
+			}
+		};
 	};
 };

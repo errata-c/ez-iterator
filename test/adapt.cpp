@@ -15,16 +15,28 @@ int main() {
 	values.push_back(&two);
 	values.push_back(&three);
 
-	struct deref {
-		int& operator()(int* ptr) {
-			return *ptr;
-		}
-	};
+	using deref = ez::intern::deref_functor<std::vector<int*>::value_type>;
+	static_assert(std::is_same_v<deref::reference, int&>, "ez::intern::deref_functor is incorrect!");
 
-	using adapted = ez::functor_adaptor<std::vector<int*>::iterator, deref>;
+	static_assert(std::is_same_v<decltype(deref{}(std::declval<int*>())), int& >, "ez::intern::deref_functor is incorrect!");
 
-	adapted begin = ez::adapt<deref>(values.begin());
-	adapted end = ez::adapt<deref>(values.end());
+	using adapted = ez::deref_adaptor<std::vector<int*>::iterator>;
+	static_assert(std::is_same_v<adapted::value_type, int>, "ez::functor_adaptor is incorrect!");
+	static_assert(std::is_same_v<adapted::pointer, int*>, "ez::functor_adaptor is incorrect!");
+	static_assert(std::is_same_v<adapted::reference, int&>, "ez::functor_adaptor is incorrect!");
+
+	static_assert(std::is_default_constructible_v<deref>, "ez::intern::deref_functor is incorrect!");
+
+	static_assert(std::is_same_v<adapted::parent_t, std::vector<int*>::iterator>, "ez::intern::functor_adaptor is incorrect!");
+	static_assert(std::is_same_v<adapted::functor_t, deref>, "ez::intern::functor_adaptor is incorrect!");
+	//static_assert(std::is_same_v<decltype(deref), std::vector<int*>::iterator>, "ez::intern::functor_adaptor is incorrect!");
+
+	int a = 0;
+	int& b = deref{}(&a);
+	assert(b == a);
+
+	adapted begin(values.begin());
+	adapted end(values.end());
 
 	for (adapted iter = begin; iter != end; ++iter) {
 		int& val = *iter;

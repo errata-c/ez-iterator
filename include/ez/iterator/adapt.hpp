@@ -2,41 +2,13 @@
 #include <cinttypes>
 #include <type_traits>
 #include <iterator>
+#include "intern/helpers.hpp"
 
 namespace ez {
-	namespace intern {
-		template<typename T, typename = int>
-		struct is_iterator : std::false_type {};
-
-		template<typename T>
-		struct is_iterator < T, decltype((typename T::iterator_category*)0, 0) > : std::true_type {};
-
-		template<typename Iter>
-		struct simple_range {
-			Iter first, last;
-
-			Iter begin() {
-				return first;
-			}
-			Iter end() {
-				return last;
-			}
-		};
-
-		template<typename T>
-		struct Deref {
-			T& operator()(T* obj) {
-				return *obj;
-			}
-			const T& operator()(const T* obj) const {
-				return *obj;
-			}
-		};
-	}
 
 	template<typename Iter, std::ptrdiff_t Inc>
 	struct offset_adaptor: public Iter {
-		static_assert(std::is_same_v<typename Iter::iterator_category, std::random_access_iterator_tag>, "Offset adaptor requires that the Iterator type passed in be a random access iterator!");
+		static_assert(ez::is_random_iterator_v<Iter>, "ez::offset_adaptor requires a random access iterator!");
 
 		using Iter::Iter;
 
@@ -64,28 +36,58 @@ namespace ez {
 	template<typename Iter, typename Functor>
 	class functor_adaptor : public Iter {
 	public:
-		functor_adaptor(const Iter& source)
-			: Iter(source)
+		using functor_t = Functor;
+		using parent_t = Iter;
+
+		static_assert(ez::is_iterator_v<parent_t>, "ez::functor_adaptor requires an iterator type!");
+		using parent_value_type = ez::iterator_value_t<parent_t>;
+		using parent_pointer = parent_value_type*;
+		using parent_reference = parent_value_type&;
+		using iterator_category = ez::extract_iterator_category_t<parent_t>;
+
+		static_assert(std::is_default_constructible_v<functor_t>, "ez::functor_adaptor requires a default constructible functor!");
+		static_assert(std::is_nothrow_copy_constructible_v<parent_t>, "ez::functor_adaptor requires a nothrow copy constructible iterator type!");
+		static_assert(std::is_invocable_v<functor_t, parent_reference>, "ez::functor_adaptor requires an invokable object type!");
+
+		functor_adaptor(const parent_t& source)
+			: parent_t(source)
+		{}
+		functor_adaptor(parent_t&& source) noexcept
+			: parent_t(std::move(source))
 		{}
 
-		using iterator_category = typename Iter::iterator_category;
+		functor_adaptor(const functor_adaptor&) = default;
+		functor_adaptor(functor_adaptor&&) noexcept = default;
+		functor_adaptor& operator=(const functor_adaptor&) = default;
+		functor_adaptor& operator=(functor_adaptor&&) noexcept = default;
 		
-		using reference = decltype(Functor{}(*reinterpret_cast<typename Iter::pointer>(0)));
-		using pointer = std::remove_reference_t<reference>*;
-		using value_type = std::remove_reference_t<reference>;
+		using ret_type = decltype(functor_t{}(std::declval<parent_value_type>()));
+
+		static constexpr bool is_reference = std::is_lvalue_reference_v<ret_type> || std::is_rvalue_reference_v<ret_type>;
+
+		// if its a reference type then remove reference
+		// if its a pointer, treat as value_type
 		
-		using difference_type = std::ptrdiff_t;
+		using value_type = std::remove_reference_t<ret_type>;
+		using pointer = std::conditional_t<is_reference, value_type*, value_type>;
+		using reference = std::conditional_t<is_reference, value_type&, value_type>;
+		using difference_type = typename std::ptrdiff_t;
 
 		reference operator*() {
-			return Functor{}(Iter::operator*());
+			return functor_t{}(parent_t::operator*());
 		}
 		pointer operator->() {
-			return Functor{}(Iter::operator->());
+			if constexpr (is_reference) {
+				return &functor_t{}(parent_t::operator*());
+			}
+			else {
+				return functor_t{}(parent_t::operator*());
+			}
 		}
 	};
 
-	template<typename Iter, typename Functor, typename T = decltype((*reinterpret_cast<Functor*>(0))(*Iter{})) >
-	class lambda_adaptor : public Iter {
+	template<typename Iter, typename Functor, typename T = decltype(std::declval<Functor>()(*std::declval<Iter>()))>
+	class lambda_adaptor: public Iter {
 	public:
 		using iterator_category = typename Iter::iterator_category;
 		using value_type = T;
@@ -142,7 +144,7 @@ namespace ez {
 
 	template<typename Functor, typename T>
 	auto adapt(T& obj) {
-		if constexpr (intern::is_iterator<T>::value) {
+		if constexpr (ez::is_iterator_v<T>) {
 			return functor_adaptor<T, Functor>(obj);
 		}
 		else {
@@ -156,7 +158,7 @@ namespace ez {
 
 	template<typename T, typename Functor>
 	auto adapt(T obj, Functor&& func) {
-		if constexpr (intern::is_iterator<T>::value) {
+		if constexpr (ez::is_iterator_v<T>) {
 			return lambda_adaptor<T, Functor>(obj, std::move(func));
 		}
 		else {
@@ -167,4 +169,7 @@ namespace ez {
 			};
 		}
 	};
+
+	template<typename iterator>
+	using deref_adaptor = functor_adaptor<iterator, typename intern::deref_functor<iterator_value_t<iterator>>>;
 };

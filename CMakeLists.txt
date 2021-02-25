@@ -6,9 +6,12 @@ VERSION 0.1)
 include(GNUInstallDirs)
 find_package(ez-cmake CONFIG REQUIRED)
 
+find_package(ez-meta CONFIG REQUIRED)
+
 add_library(ez-iterator INTERFACE)
 target_compile_features(ez-iterator INTERFACE cxx_std_17)
 target_include_directories(ez-iterator INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>" "$<INSTALL_INTERFACE:include>")
+target_link_libraries(ez-iterator INTERFACE ez::meta)
 
 set_target_properties(ez-iterator PROPERTIES EXPORT_NAME "iterator")
 
