@@ -19,7 +19,6 @@ namespace ez {
 			}
 		};
 
-
 		template<typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
 		class range_iterator {
 		public:
@@ -120,29 +119,32 @@ namespace ez {
 			return range_iterator<T>(*iter + val);
 		}
 
-
-		template<typename Iter>
+		// Simple range type, just takes two (possibly differently typed) iterators and returns then as begin and end.
+		template<typename Iter0, typename Iter1 = Iter0>
 		struct simple_range {
-			static_assert(ez::is_iterator_v<Iter>, "ez::intern::simple_range requires an iterator type!");
-			static_assert(std::is_nothrow_copy_constructible_v<Iter>, "ez::intern::simple_range requires a nothrow copy constructible iterator type!");
+			static_assert(ez::is_iterator_v<Iter0>, "ez::intern::simple_range requires an iterator type!");
+			static_assert(ez::is_iterator_v<Iter1>, "ez::intern::simple_range requires an iterator type!");
+			static_assert(std::is_nothrow_copy_constructible_v<Iter0>, "ez::intern::simple_range requires a nothrow copy constructible iterator type!");
+			static_assert(std::is_nothrow_copy_constructible_v<Iter1>, "ez::intern::simple_range requires a nothrow copy constructible iterator type!");
 
-			template<typename = std::enable_if_t<std::is_nothrow_move_constructible_v<Iter>>>
-			simple_range(Iter&& _first, Iter&& _last) noexcept
+			template<typename = std::enable_if_t<std::is_nothrow_move_constructible_v<Iter0> && std::is_nothrow_move_constructible_v<Iter1>>>
+			simple_range(Iter0&& _first, Iter1&& _last) noexcept
 				: first(std::move(_first))
 				, last(std::move(_last))
 			{};
 
-			simple_range(const Iter& _first, const Iter& _last) noexcept
+			simple_range(const Iter0& _first, const Iter1& _last) noexcept
 				: first(_first)
 				, last(_last)
 			{};
 
-			Iter first, last;
+			Iter0 first;
+			Iter1 last;
 
-			Iter begin() noexcept {
+			Iter0 begin() noexcept {
 				return first;
 			}
-			Iter end() noexcept {
+			Iter1 end() noexcept {
 				return last;
 			}
 		};

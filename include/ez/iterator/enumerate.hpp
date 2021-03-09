@@ -4,7 +4,9 @@
 
 namespace ez {
 	namespace intern {
-
+		// Allows iterating over a range of values and getting an index value as well.
+		// If we want to allow reversing this, we need to use a signed integer type.
+		// This class needs work.
 		template<typename Iter>
 		class enumerate_iterator {
 		public:
@@ -132,6 +134,7 @@ namespace ez {
 		};
 	};
 
+	// Enumerate a container, run through the elements in it, returning a tuple with the index, then the value type.
 	template<typename Container>
 	auto enumerate(Container&& container) {
 		using container_t = std::remove_reference_t<Container>;
@@ -146,6 +149,7 @@ namespace ez {
 		};
 	}
 
+	// Reverse enumerate
 	template<typename Container>
 	auto renumerate(Container&& container) {
 		using container_t = std::remove_reference_t<Container>;

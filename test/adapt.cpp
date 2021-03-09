@@ -1,19 +1,21 @@
+#include <catch2/catch.hpp>
+
 #include <ez/iterator.hpp>
 #include <ez/iterator/adapt.hpp>
 #include <fmt/printf.h>
 #include <vector>
+#include <deque>
 
-int main() {
-	fmt::print("adaptor test\n");
-
-	int one = 1;
-	int two = 2;
-	int three = 3;
-
+TEST_CASE("adapt") {
+	std::deque<int> data;
 	std::vector<int*> values;
-	values.push_back(&one);
-	values.push_back(&two);
-	values.push_back(&three);
+
+	for (int i = 0; i < 10; ++i) {
+		data.push_back(i);
+		values.push_back(&data.back());
+	}
+
+	// Bunch of static checks:
 
 	using deref = ez::intern::deref_functor<std::vector<int*>::value_type>;
 	static_assert(std::is_same_v<deref::reference, int&>, "ez::intern::deref_functor is incorrect!");
@@ -33,23 +35,25 @@ int main() {
 
 	int a = 0;
 	int& b = deref{}(&a);
-	assert(b == a);
+	REQUIRE(b == a);
 
 	adapted begin(values.begin());
 	adapted end(values.end());
 
-	for (adapted iter = begin; iter != end; ++iter) {
+	REQUIRE((end - begin) == values.size());
+	int index = 0;
+	for (adapted iter = begin; iter != end; ++iter, ++index) {
 		int& val = *iter;
-		fmt::print("Value: {}\n", val);
+		REQUIRE(data[index] == val);
+		REQUIRE(&data[index] == &val);
+		REQUIRE(&val == values[index]);
 	}
 
-	for (int & val : ez::adapt<deref>(values)) {
-		fmt::print("Value: {}\n", val);
-	}
-
+	index = 0;
 	for (int& val : ez::adapt(values, [](int* ptr) -> int& { return *ptr; })) {
-		fmt::print("Value: {}\n", val);
+		REQUIRE(data[index] == val);
+		REQUIRE(&data[index] == &val);
+		REQUIRE(&val == values[index]);
+		++index;
 	}
-
-	return 0;
 }
