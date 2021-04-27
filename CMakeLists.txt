@@ -22,6 +22,8 @@ target_link_libraries(ez-iterator INTERFACE ez::meta)
 
 set_target_properties(ez-iterator PROPERTIES EXPORT_NAME "iterator")
 
+add_library(ez::iterator ALIAS ez-iterator)
+
 if(BUILD_TESTS)
 	add_subdirectory("test")
 endif()

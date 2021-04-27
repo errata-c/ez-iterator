@@ -1,12 +1,12 @@
-#include <catch2/catch.hpp>
-
 #include <ez/iterator.hpp>
 #include <ez/iterator/adapt.hpp>
 #include <fmt/printf.h>
 #include <vector>
 #include <deque>
 
-TEST_CASE("adapt") {
+
+
+void test_adapt() {
 	std::deque<int> data;
 	std::vector<int*> values;
 
@@ -35,25 +35,25 @@ TEST_CASE("adapt") {
 
 	int a = 0;
 	int& b = deref{}(&a);
-	REQUIRE(b == a);
+	assert(b == a);
 
 	adapted begin(values.begin());
 	adapted end(values.end());
 
-	REQUIRE((end - begin) == values.size());
+	assert((end - begin) == values.size());
 	int index = 0;
 	for (adapted iter = begin; iter != end; ++iter, ++index) {
 		int& val = *iter;
-		REQUIRE(data[index] == val);
-		REQUIRE(&data[index] == &val);
-		REQUIRE(&val == values[index]);
+		assert(data[index] == val);
+		assert(&data[index] == &val);
+		assert(&val == values[index]);
 	}
 
 	index = 0;
 	for (int& val : ez::adapt(values, [](int* ptr) -> int& { return *ptr; })) {
-		REQUIRE(data[index] == val);
-		REQUIRE(&data[index] == &val);
-		REQUIRE(&val == values[index]);
+		assert(data[index] == val);
+		assert(&data[index] == &val);
+		assert(&val == values[index]);
 		++index;
 	}
 }

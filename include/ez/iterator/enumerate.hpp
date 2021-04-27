@@ -4,23 +4,26 @@
 
 namespace ez {
 	namespace intern {
-		// Allows iterating over a range of values and getting an index value as well.
-		// If we want to allow reversing this, we need to use a signed integer type.
-		// This class needs work.
-		template<typename Iter>
+		/*
+		Wraps an iterator type, and keeps track of an index value.
+		*/
+		template<typename Iter, bool reversed = false>
 		class enumerate_iterator {
 		public:
 			static constexpr bool
 				at_least_bidirectional = ez::is_bidirectional_iterator_v<Iter>,
 				at_least_random = ez::is_random_iterator_v<Iter>;
 
+			static_assert(!reversed || (reversed && at_least_bidirectional), "Reversed enumeration requires at least a bidirectional iterator!");
+
 			using utype = ez::iterator_value_t<Iter>;
-			using utype_ref = utype&;
+			using utype_reference = utype&;
+			using utype_pointer = utype*;
 
 			using size_type = std::size_t;
 			using difference_type = std::ptrdiff_t;
 			struct value_type {
-				utype_ref value;
+				utype_reference value;
 				difference_type index;
 			};
 			using iterator_category = ez::extract_iterator_category_t<Iter>;
@@ -41,127 +44,178 @@ namespace ez {
 			enumerate_iterator& operator=(const enumerate_iterator&) = default;
 
 			value_type operator->() {
-				return { *iter, index };
+				if constexpr (reversed) {
+					Iter copy = iter;
+					return { *--copy, index };
+				}
+				else {
+					return { *iter, index };
+				}
 			}
 			value_type operator*() {
-				return { *iter, index };
+				if constexpr (reversed) {
+					Iter copy = iter;
+					return { *--copy, index };
+				}
+				else {
+					return { *iter, index };
+				}
 			}
 
 			enumerate_iterator& operator++() {
-				++iter;
-				++index;
+				if constexpr (reversed) {
+					--iter;
+					--index;
+				}
+				else {
+					++iter;
+					++index;
+				}
+				
 				return *this;
 			}
 			enumerate_iterator operator++(int) {
 				enumerate_iterator copy = *this;
-				++(*this);
+				if constexpr (reversed) {
+					--(*this);
+				}
+				else {
+					++(*this);
+				}
+				
 				return copy;
 			}
 
 			template<typename = std::enable_if_t<at_least_bidirectional>>
 			enumerate_iterator& operator--() {
-				--iter;
-				--index;
+				if constexpr (reversed) {
+					++iter;
+					++index;
+				}
+				else {
+					--iter;
+					--index;
+				}
+				
 				return *this;
 			}
 			template<typename = std::enable_if_t<at_least_bidirectional>>
 			enumerate_iterator& operator--(int) {
 				enumerate_iterator copy = *this;
-				--(*this);
+				if constexpr (reversed) {
+					++(*this);
+				}
+				else {
+					--(*this);
+				}
+				
 				return copy;
 			}
 
 			bool operator==(const enumerate_iterator& other) const noexcept {
-				return iter == other.iter;
+				return index == other.index;
 			}
 			bool operator!=(const enumerate_iterator& other) const noexcept {
-				return iter != other.iter;
+				return index != other.index;
 			}
 
 			template<typename = std::enable_if_t<at_least_random>>
 			bool operator<(const enumerate_iterator& other) const noexcept {
-				return iter < other.iter;
+				return index < other.index;
 			}
 			template<typename = std::enable_if_t<at_least_random>>
 			bool operator<=(const enumerate_iterator& other) const noexcept {
-				return iter <= other.iter;
+				return index <= other.index;
 			}
 			template<typename = std::enable_if_t<at_least_random>>
 			bool operator>(const enumerate_iterator& other) const noexcept {
-				return iter > other.iter;
+				return index > other.index;
 			}
 			template<typename = std::enable_if_t<at_least_random>>
 			bool operator>=(const enumerate_iterator& other) const noexcept {
-				return iter >= other.iter;
+				return index >= other.index;
+			}
+
+			template<typename = std::enable_if_t<at_least_random>>
+			difference_type operator-(enumerate_iterator other) const {
+				return index - other.index;
 			}
 
 			template<typename = std::enable_if_t<at_least_random>>
 			enumerate_iterator operator+(difference_type offset) const {
+				if constexpr (reversed) {
+					offset = -offset;
+				}
+
 				return enumerate_iterator{iter + offset, index + offset};
 			}
 			template<typename = std::enable_if_t<at_least_random>>
 			enumerate_iterator operator-(difference_type offset) const {
+				if constexpr (reversed) {
+					offset = -offset;
+				}
+
 				return enumerate_iterator{ iter - offset, index - offset };
 			}
 			template<typename = std::enable_if_t<at_least_random>>
 			enumerate_iterator& operator+=(difference_type offset) {
+				if constexpr (reversed) {
+					offset = -offset;
+				}
+
 				iter += offset;
 				index += offset;
+
 				return *this;
 			}
 			template<typename = std::enable_if_t<at_least_random>>
 			enumerate_iterator& operator-=(difference_type offset) {
+				if constexpr (reversed) {
+					offset = -offset;
+				}
+
 				iter -= offset;
 				index -= offset;
+
 				return *this;
 			}
 		private:
 			Iter iter;
 			difference_type index;
 		};
-
-		template<typename Iter, typename = std::enable_if_t<ez::is_random_iterator_v<Iter>>>
-		Iter operator+(typename Iter::difference_type offset, const Iter& iter) {
-			Iter copy = iter;
-			copy += offset;
-			return copy;
-		};
-		template<typename Iter, typename = std::enable_if_t<ez::is_random_iterator_v<Iter>>>
-		Iter operator-(typename Iter::difference_type offset, const Iter& iter) {
-			Iter copy = iter;
-			copy -= offset;
-			return copy;
-		};
 	};
 
-	// Enumerate a container, run through the elements in it, returning a tuple with the index, then the value type.
+	// Enumerate a container, run through the elements in the container and provide an index value along the way.
+	// The type returned when dereferencing the iterators in the range is a simple struct containing two data members, 'value' and 'index'
+	// You can use structured bindings to make the enumeration more intuitive, see the examples for how.
 	template<typename Container>
 	auto enumerate(Container&& container) {
 		using container_t = std::remove_reference_t<Container>;
+		using container_iterator_t = decltype(container.begin());
 
-		static_assert(ez::is_forward_iterator_v<typename container_t::iterator>, "ez::enumerate requires at least a forward iterator!");
+		static_assert(ez::is_forward_iterator_v<container_iterator_t>, "ez::enumerate requires at least a forward iterator!");
 
-		using iterator = intern::enumerate_iterator<decltype(std::declval<container_t>().begin())>;
+		using enumerator_t = intern::enumerate_iterator<container_iterator_t>;
 		
-		return intern::simple_range<iterator>{
-			iterator{container.begin(), 0},
-			iterator{container.end(), static_cast<std::ptrdiff_t>(container.size())}
+		return intern::simple_range<enumerator_t>{
+			enumerator_t{container.begin(), 0},
+			enumerator_t{container.end(), static_cast<std::ptrdiff_t>(container.size())}
 		};
 	}
 
-	// Reverse enumerate
+	// Reverse enumerate, does the exact same thing as ez::enumerate but in the opposite direction.
 	template<typename Container>
 	auto renumerate(Container&& container) {
 		using container_t = std::remove_reference_t<Container>;
-		using iterator = intern::enumerate_iterator<decltype(std::declval<container_t>().begin())>;
+		using container_iterator_t = decltype(container.begin());
 		
-		static_assert(ez::is_bidirectional_iterator_v<typename container_t::iterator>, "ez::renumerate requires at least a bidirectional iterator!");
+		static_assert(ez::is_bidirectional_iterator_v<container_iterator_t>, "ez::renumerate requires at least a bidirectional iterator!");
 
-		using reverse_iterator = std::reverse_iterator<iterator>;
+		using enumerator_t = intern::enumerate_iterator<container_iterator_t, true>;
 
-		return intern::simple_range<reverse_iterator>{
-			std::make_reverse_iterator(iterator{ container.end(), static_cast<std::ptrdiff_t>(container.size()) }),
-			std::make_reverse_iterator(iterator{ container.begin(), 0 }),
+		return intern::simple_range<enumerator_t>{
+			enumerator_t{ container.end(), static_cast<std::ptrdiff_t>(container.size()) - 1 },
+				enumerator_t{ container.begin(), -1 },
 		};
 	}
 };
